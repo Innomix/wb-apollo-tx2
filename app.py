@@ -133,8 +133,7 @@ def exec_cancel():
 @app.route('/exec/poweroff', methods=['POST'])
 def exec_poweroff():
     subprocess.call([progfile, "--cancel"])
-    subprocess.call(["sleep", "2"])
-    subprocess.call(["poweroff"])
+    subprocess.Popen(["sleep 2 && poweroff"], shell=True)
     return jsonify({'errno': 0, 'msg': 'success'})
 
 
