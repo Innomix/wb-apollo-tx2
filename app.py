@@ -20,7 +20,6 @@ exectask = basedir + "/" + UPLOAD_FOLDER + "/" + "exec.json"
 cmapfile = basedir + "/" + UPLOAD_FOLDER + "/" + "cmap.stcm"
 homefile = basedir + "/" + UPLOAD_FOLDER + "/" + "homepose.json"
 
-
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -131,6 +130,13 @@ def exec_cancel():
     subprocess.call([progfile, "--cancel"])
     return jsonify({'errno': 0, 'msg': 'success'})
 
+@app.route('/exec/poweroff', methods=['POST'])
+def exec_poweroff():
+    subprocess.call([progfile, "--cancel"])
+    subprocess.call(["sleep", "2"])
+    subprocess.call(["poweroff"])
+    return jsonify({'errno': 0, 'msg': 'success'})
+
 
 @app.route('/home', methods=['GET'])
 def get_home():
@@ -147,6 +153,13 @@ def set_home():
     home = { 'x': x, 'y': y }
     writeToJSONFile(homefile, home)
     return jsonify({'errno': 0, 'msg': 'success'})
+
+
+@app.route('/volume', methods=['GET'])
+def get_volume():
+    cmd = "amixer -c 2 sget 'Speaker',0 | grep 'Right:' | awk -F'[][]' '{ print $2 }' | awk -F '%' '{ printf $1}'"
+    vol = subprocess.check_output(cmd, shell=True)
+    return jsonify({'errno': 0, 'volume': vol})
 
 
 @app.route('/volume', methods=['PUT'])
@@ -182,6 +195,17 @@ def post_map():
         return jsonify({"errno":0, "msg": "success"})
     else:
         return jsonify({"errno":1001, "msg":u"failed"})
+
+
+@app.route('/map', methods=['PUT'])
+def update_map():
+    home = []
+    with open(homefile) as f:
+        home = json.load(f)
+    x = home['x']
+    y = home['y']
+    subprocess.call([progfile, "--loadmap", cmapfile, "-x", x, "-y", y])
+    return jsonify({"errno":0, "msg": "success"})
 
 
 @app.route('/upload', methods=['POST'])

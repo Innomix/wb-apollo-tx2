@@ -27,6 +27,7 @@ using namespace rpos::features::location_provider;
 static const int battery_low_level = 20;
 
 std::string ipaddress = "192.168.11.1";
+const std::string mapPath = "/home/nvidia/Downloads/fm0731.stcm";
 
 std::string audio_path("uploads/");
 
@@ -242,6 +243,8 @@ static int do_task(SlamwareCorePlatform &sdp, const char *jsonfile)
     std::cout << "milestones " << points.size() << std::endl;
 
     // start play music
+    system("killall mpg123");
+
     if (!access(audio_path.c_str(), F_OK)) {
         char cmd[256];
         snprintf(cmd, sizeof(cmd), "mpg123 --loop \"-1\" -a hw:2,0 %s &", audio_path.c_str());
