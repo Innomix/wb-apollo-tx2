@@ -1,4 +1,6 @@
 #!venv/bin/python2
+# -*- coding: UTF-8 -*-
+
 
 from flask import Flask, jsonify, send_from_directory
 from flask import abort
@@ -8,36 +10,50 @@ from flask import request
 import os
 import json
 import subprocess
-
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = set(['stcm', 'mp3'])
+import codecs
 
 basedir = os.path.abspath(os.path.dirname(__file__))
+rootdir = basedir + "/.."
+upload_dir = rootdir + "/uploads"
 
-progfile = basedir + "/apollod"
-taskfile = basedir + "/" + UPLOAD_FOLDER + "/" + "tasks.json"
-exectask = basedir + "/" + UPLOAD_FOLDER + "/" + "exec.json"
-cmapfile = basedir + "/" + UPLOAD_FOLDER + "/" + "cmap.stcm"
-homefile = basedir + "/" + UPLOAD_FOLDER + "/" + "homepose.json"
+progfile = rootdir + "/bin/apollod"
+
+taskfile = upload_dir + "/tasks.json"
+exectask = upload_dir + "/exec.json"
+cmapfile = upload_dir + "/cmap.stcm"
+homefile = upload_dir + "/homepose.json"
+
+UPLOAD_FOLDER = upload_dir
+ALLOWED_EXTENSIONS = set(['stcm', 'mp3'])
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def writeToJSONFile(filepath, data):
-    with open(filepath, 'w') as fp:
-        json.dump(data, fp)
+def save_jsonfile(path, data):
+    with codecs.open(path, 'w', 'utf-8') as fp:
+        json.dump(data, fp, ensure_ascii=False, indent=4)
+
 
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['JSON_AS_ASCII'] = False
 
 tasks = []
 
-with open(taskfile) as f:
-    tasks = json.load(f)
+try:
+    with open(taskfile) as fp:
+        tasks = json.load(fp)
+except Exception as error:
+    save_jsonfile(taskfile, tasks)
 
+#print(json.dumps(tasks, ensure_ascii=False, indent=4))
+
+
+def json_response(response):
+    return make_response(jsonify(response), 200) 
 
 @app.errorhandler(404)
 def not_found(error):
@@ -51,69 +67,73 @@ def not_found(error):
 
 @app.route('/tasks', methods=['GET'])
 def get_tasks():
-    return jsonify({'tasks': tasks})
-
-
-@app.route('/tasks/<int:task_id>', methods=['GET'])
-def get_task(task_id):
-    task = filter(lambda t: t['id'] == task_id, tasks)
-    if len(task) == 0:
-        abort(404)
-    return jsonify({'task': task[0]})
+    return make_response(jsonify({'tasks': tasks}), 200)
 
 
 @app.route('/tasks', methods=['POST'])
 def create_task():
     if not request.json or not 'name' in request.json or not 'milestones' in request.json:
-        abort(400)
+        return json_response({ 'errno': 400, 'msg': u'任务格式错误'})
 
-    task = filter(lambda t: t['name'] == request.json['name'], tasks)
-    print(task)
-    if len(task) != 0:
-        abort(400)
+    audio1 = request.json.get('audio1')
+
+    if audio1 and not os.path.exists(upload_dir + '/' + audio1):
+    	return json_response({ 'errno': 400, 'msg': u'{} 文件不存在'.format(audio1)})
+
+    if len(tasks) > 0:
+        task_id = tasks[-1]['id']
+    else: 
+	    task_id = 0
 
     task = {
-        #'id': tasks[-1]['id'] + 1,
-        'id': len(tasks),
+        'id': task_id + 1,
         'name': request.json['name'],
         'milestones': request.json['milestones'],
         'audio1': request.json.get('audio1', ""),
         'audio2': request.json.get('audio2', "")
     }
     tasks.append(task)
-    writeToJSONFile(taskfile, tasks)
-    return jsonify({'task': task}), 201
+    save_jsonfile(taskfile, tasks)
+    return json_response({ 'errno': 0, 'task': task})
+
+
+@app.route('/tasks/<int:task_id>', methods=['GET'])
+def get_task(task_id):
+    task = filter(lambda t: t['id'] == task_id, tasks)
+    if len(task) == 0:
+    	return json_response({ 'errno': 400, 'msg': u'task {} not found'.format(task_id)})
+    return json_response({ 'errno': 0, 'task': task[0]})
 
 
 @app.route('/tasks/<int:task_id>', methods=['PUT'])
 def update_task(task_id):
     task = filter(lambda t: t['id'] == task_id, tasks)
     if len(task) == 0:
-        abort(404)
+    	return json_response({ 'errno': 400, 'msg': u'task {} not found'.format(task_id)})
     task[0]['name'] = request.json.get('name', task[0]['name'])
     task[0]['milestones'] = request.json.get('milestones', task[0]['milestones'])
     task[0]['audio1'] = request.json.get('audio1', task[0]['audio1'])
     task[0]['audio2'] = request.json.get('audio2', task[0]['audio2'])
-    writeToJSONFile(taskfile, tasks)
-    return jsonify({'task': task[0]})
+    save_jsonfile(taskfile, tasks)
+    return json_response({'errno': 0, 'msg': u'task {} update success'.format(task_id)})
 
 
 @app.route('/tasks/<int:task_id>', methods=['DELETE'])
 def delete_task(task_id):
     task = filter(lambda t: t['id'] == task_id, tasks)
     if len(task) == 0:
-        abort(404)
+    	return json_response({ 'errno': 400, 'msg': u'task {} not found'.format(task_id)})
     tasks.remove(task[0])
-    writeToJSONFile(taskfile, tasks)
-    return jsonify({'errno': 0, 'msg': 'success'})
+    save_jsonfile(taskfile, tasks)
+    return json_response({'errno': 0, 'msg': u'task {} delete success'.format(task_id)})
 
 
 @app.route('/tasks/<int:task_id>', methods=['POST'])
 def exec_task(task_id):
     task = filter(lambda t: t['id'] == task_id, tasks)
     if len(task) == 0:
-        abort(404)
-    writeToJSONFile(exectask, task[0])
+    	return json_response({ 'errno': 400, 'msg': u'task {} not found'.format(task_id)})
+    save_jsonfile(exectask, task[0])
     subprocess.Popen([progfile, "--task", exectask])
     return jsonify({'errno': 0, 'msg': 'success'})
 
@@ -150,9 +170,26 @@ def set_home():
     x = request.args.get('x')
     y = request.args.get('y')
     home = { 'x': x, 'y': y }
-    writeToJSONFile(homefile, home)
+    save_jsonfile(homefile, home)
     return jsonify({'errno': 0, 'msg': 'success'})
 
+
+@app.route('/status', methods=['GET'])
+def get_status():
+
+    cmd = ["ping", "-c", "1", "-W", "1", "192.168.11.1"]
+    try:
+        subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        output = "network success. "
+    except subprocess.CalledProcessError as e:
+        output = "network failed. "
+
+    cmd = ["cat", "/tmp/apollo.log"]
+    try:
+        output += subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        output += "booting ..."
+    return jsonify({'errno': 0, 'message': output})
 
 @app.route('/volume', methods=['GET'])
 def get_volume():

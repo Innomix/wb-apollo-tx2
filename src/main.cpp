@@ -29,14 +29,45 @@ static const int battery_low_level = 20;
 std::string ipaddress = "192.168.11.1";
 const std::string mapPath = "/home/nvidia/Downloads/fm0731.stcm";
 
-std::string audio_path("uploads/");
+std::string audio_path("/opt/apollo/uploads/");
 
-static void slog(const char *format, ...)
+static void write_log(const char *format, ...)
 {
     va_list va;
-    va_start(va, format);
-    vsyslog(LOG_USER|LOG_INFO, format, va);
-    va_end(va);
+
+    static FILE *fp = NULL;
+    if (!fp) {
+        fp = fopen("/tmp/apollo.log", "w");
+    }
+    if (fp) {
+        va_start(va, format);
+        vfprintf(fp, format, va);
+        va_end(va);
+        fflush(fp);
+    }
+}
+
+static void write_pid_file(void)
+{
+    static const char fpath[] = "/var/run/apollod.pid";
+
+    int fd = open(fpath, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd < 0) {
+        printf("pid file open failed\n");
+        exit(1);
+    }
+
+    if (lockf(fd, F_TLOCK, 0) < 0) {
+        printf("pid file lock failed\n");
+        exit(0);
+    }
+
+    char str[32];
+    int n = snprintf(str, sizeof(str), "%d\n", getpid());
+    if (write(fd, str, n) != n) {
+        printf("pid file write failed\n");
+        exit(0);
+    }
 }
 
 static int do_getstatus(SlamwareCorePlatform &sdp)
@@ -57,6 +88,8 @@ static int do_loadmap(SlamwareCorePlatform &sdp, const char *path, double x, dou
 {
     printf("load map %s\n", path);
 
+    write_log("loading map ...");
+
     try {
         objects::CompositeMapReader cmapReader;
         auto cmap = cmapReader.loadFile(path);
@@ -68,9 +101,11 @@ static int do_loadmap(SlamwareCorePlatform &sdp, const char *path, double x, dou
         sdp.setHomePose(home_pose);
 
         std::cout << "reload map success" << std::endl;
+        write_log("success");
     }
     catch (rpos::system::detail::ExceptionBase &e) {
         std::cout << "failed on " << e.what() << std::endl;
+        write_log("failed");
         return -1;
     }
 
@@ -88,6 +123,7 @@ static int do_gohome(SlamwareCorePlatform &sdp)
 {
     int retry = 5;
 
+    write_log("go home ...");
     while (retry--) {
         std::cout << "go home ..." << std::endl;
 
@@ -100,6 +136,7 @@ static int do_gohome(SlamwareCorePlatform &sdp)
         std::cout << "... done, status " << status << std::endl;
 
         if (status == rpos::core::ActionStatusFinished) {
+            write_log("success");
             return 0;
         }
 
@@ -108,13 +145,13 @@ static int do_gohome(SlamwareCorePlatform &sdp)
         boost::this_thread::sleep_for(boost::chrono::milliseconds(2000));
     }
 
+    write_log("failed");
     return -1;
 }
 
 static int do_getpose(SlamwareCorePlatform &sdp)
 {
     rpos::core::Pose pose = sdp.getPose();
-    //slog("Robot Pose: (%f, %f) yaw %f\n", pose.x(), pose.y(), pose.yaw());
     std::cout << "Robot Pose: " << std::endl;
     std::cout << "x: " << pose.x() << ", ";
     std::cout << "y: " << pose.y() << ", ";
@@ -130,6 +167,11 @@ static int do_getbattery(SlamwareCorePlatform &sdp)
     int battPercentage = sdp.getBatteryPercentage();
     std::cout <<"Battery: " << battPercentage << "%" << std::endl;
     return 0;
+}
+
+static bool endsWith(const std::string& s, const std::string& suffix)
+{
+    return s.size() >= suffix.size() && s.rfind(suffix) == (s.size()-suffix.size());
 }
 
 static bool parse_task(const char *fpath, std::vector<rpos::core::Location> &points)
@@ -195,10 +237,19 @@ static bool move_to_point(SlamwareCorePlatform &sdp, const rpos::core::Location 
 
             if (action.getReason() == "aborted") {
                 std::cout << "move aborted" << std::endl;
+                write_log("moveto (%f, %f)\n", point.x(), point.y());
+                write_log("task aborted");
                 return false;
             }
-
-            std::cout << "move failed" << std::endl;
+            else if (action.getReason() == "unreachable") {
+                std::cout << "move unreachable" << std::endl;
+                write_log("moveto (%f, %f)\n", point.x(), point.y());
+                write_log("task unreachable");
+                return false;
+            }
+            else if (action.getReason() == "failed") {
+                std::cout << "move failed" << std::endl;
+            }
         }
 
         boost::this_thread::sleep_for(boost::chrono::milliseconds(2000));
@@ -242,16 +293,19 @@ static int do_task(SlamwareCorePlatform &sdp, const char *jsonfile)
 
     std::cout << "milestones " << points.size() << std::endl;
 
+
+    write_log("do task ...");
+
     // start play music
     system("killall mpg123");
 
-    if (!access(audio_path.c_str(), F_OK)) {
+    if (endsWith(audio_path, ".mp3") && !access(audio_path.c_str(), F_OK)) {
         char cmd[256];
         snprintf(cmd, sizeof(cmd), "mpg123 --loop \"-1\" -a hw:2,0 %s &", audio_path.c_str());
         printf("%s\n", cmd);
         system(cmd);
     } else {
-        std::cout << audio_path << " not exist" << std::endl;
+        std::cout << audio_path << " not exist, no mp3" << std::endl;
     }
 
     for (;;) {
@@ -277,8 +331,6 @@ static int do_task(SlamwareCorePlatform &sdp, const char *jsonfile)
 
 int main(int argc, char *argv[])
 {
-    slog(argv[0]);
-
     const char *optstring = "x:y:sl:t:chpb";
 
     struct option opts[] = {
@@ -294,8 +346,8 @@ int main(int argc, char *argv[])
     SlamwareCorePlatform sdp;
     try {
         sdp = SlamwareCorePlatform::connect(ipaddress, 1445);
-        slog("SDK Version: %s\n", sdp.getSDKVersion().c_str());
-        slog("SDP Version: %s\n", sdp.getSDPVersion().c_str());
+        printf("SDK Version: %s\n", sdp.getSDKVersion().c_str());
+        printf("SDP Version: %s\n", sdp.getSDPVersion().c_str());
     } catch(ConnectionTimeOutException& e) {
         std::cout <<e.what() << std::endl;
         return -2;
@@ -303,7 +355,7 @@ int main(int argc, char *argv[])
         std::cout <<e.what() << std::endl;
         return -3;
     }
-    printf("Connection Successfully\n");
+    //printf("Connection Successfully\n");
 
     if (sdp.getMapUpdate()) {
         sdp.setMapUpdate(false);
@@ -332,12 +384,14 @@ int main(int argc, char *argv[])
             map = strdup(optarg);
             break;
         case 't':
+            write_pid_file();
             ret = do_task(sdp, optarg);
             break;
         case 'c':
             ret = do_cancel(sdp);
             break;
         case 'h':
+            write_pid_file();
             ret = do_gohome(sdp);
             break;
         case 'p':
@@ -352,6 +406,7 @@ int main(int argc, char *argv[])
     }
 
     if (map) {
+        write_pid_file();
         printf("x %f, y %f, %s\n", x, y, map);
         ret =  do_loadmap(sdp, map, x, y);
     }

@@ -24,6 +24,10 @@ sudo apt install mpg123
 # 设置 eth0 静态 ip
 
 cp res/interfaces /etc/network/interfaces
+
+# 设置 locale
+sudo update-locale LANG=zh_CN.UTF-8
+sudo update-locale LC_CTYPE=zh_CN.UTF-8
 ```
 
 
@@ -74,6 +78,9 @@ curl --request POST --url http://192.168.31.207:5000/exec/gohome
 curl --request POST --url http://192.168.31.207:5000/exec/cancel
 
 curl --request PUT --url http://127.0.0.1:5000/map
+
+
+curl --request DELETE --url http://192.168.31.207:5000/tasks/0
 ```
 
 
