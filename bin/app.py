@@ -141,6 +141,7 @@ def exec_task(task_id):
 @app.route('/exec/gohome', methods=['POST'])
 def exec_gohome():
     subprocess.call([progfile, "--cancel"])
+    subprocess.call(["sleep", "1"])
     subprocess.Popen([progfile, "--gohome"])
     return jsonify({'errno': 0, 'msg': 'success'})
 
@@ -148,6 +149,7 @@ def exec_gohome():
 @app.route('/exec/cancel', methods=['POST'])
 def exec_cancel():
     subprocess.call([progfile, "--cancel"])
+    subprocess.call(["sleep", "1"])
     return jsonify({'errno': 0, 'msg': 'success'})
 
 @app.route('/exec/poweroff', methods=['POST'])
@@ -189,7 +191,7 @@ def get_status():
         output += subprocess.check_output(cmd, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         output += "booting ..."
-    return jsonify({'errno': 0, 'message': output})
+    return jsonify({'errno': 0, 'msg': output})
 
 @app.route('/volume', methods=['GET'])
 def get_volume():
