@@ -3,9 +3,9 @@ Description=Apollo Daemon Service
 
 [Service]
 Type=idle
-User=nvidia
-WorkingDirectory=/home/nvidia/Documents/apollo
-ExecStart=/home/nvidia/Documents/apollo/app.py
+User=root
+WorkingDirectory=/opt/apollo/bin
+ExecStart=/opt/apollo/bin/app.py
 Restart=always
 RestartSec=3
 
