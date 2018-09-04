@@ -245,10 +245,12 @@ static bool move_to_point(SlamwareCorePlatform &sdp, const rpos::core::Location 
                 std::cout << "move unreachable" << std::endl;
                 write_log("moveto (%f, %f)\n", point.x(), point.y());
                 write_log("task unreachable");
-                return false;
+                //return false;
             }
             else if (action.getReason() == "failed") {
                 std::cout << "move failed" << std::endl;
+                write_log("moveto (%f, %f)\n", point.x(), point.y());
+                write_log("task failed");
             }
         }
 
