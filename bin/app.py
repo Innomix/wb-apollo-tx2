@@ -150,6 +150,8 @@ def exec_gohome():
 def exec_cancel():
     subprocess.call([progfile, "--cancel"])
     subprocess.call(["sleep", "1"])
+    subprocess.call("killall -9 mpg123", shell=True)
+    subprocess.call("killall -9 apollod", shell=True)
     return jsonify({'errno': 0, 'msg': 'success'})
 
 @app.route('/exec/poweroff', methods=['POST'])
