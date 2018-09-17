@@ -12,6 +12,8 @@ import json
 import subprocess
 import codecs
 
+from flask_cors import CORS
+
 basedir = os.path.abspath(os.path.dirname(__file__))
 rootdir = basedir + "/.."
 upload_dir = rootdir + "/uploads"
@@ -37,6 +39,8 @@ def save_jsonfile(path, data):
 
 
 app = Flask(__name__)
+CORS(app)
+
 app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['JSON_AS_ASCII'] = False

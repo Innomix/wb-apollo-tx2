@@ -1,4 +1,4 @@
-#!/home/nvidia/Documents/apollo/venv/bin/python
+#!/opt/apollo/bin/venv/bin/python
 
 import sys
 import getopt
