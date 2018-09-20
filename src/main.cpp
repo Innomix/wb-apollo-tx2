@@ -166,7 +166,7 @@ static int do_getpose(SlamwareCorePlatform &sdp)
 static int do_getbattery(SlamwareCorePlatform &sdp)
 {
     int battPercentage = sdp.getBatteryPercentage();
-    std::cout <<"Battery: " << battPercentage << "%" << std::endl;
+    std::cout << battPercentage;
     return 0;
 }
 
@@ -365,8 +365,8 @@ int main(int argc, char *argv[])
     SlamwareCorePlatform sdp;
     try {
         sdp = SlamwareCorePlatform::connect(ipaddress, 1445);
-        printf("SDK Version: %s\n", sdp.getSDKVersion().c_str());
-        printf("SDP Version: %s\n", sdp.getSDPVersion().c_str());
+        //printf("SDK Version: %s\n", sdp.getSDKVersion().c_str());
+        //printf("SDP Version: %s\n", sdp.getSDPVersion().c_str());
     } catch(ConnectionTimeOutException& e) {
         std::cout <<e.what() << std::endl;
         return -2;

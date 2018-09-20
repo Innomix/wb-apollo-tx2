@@ -212,6 +212,14 @@ def set_volume():
     subprocess.call(["amixer", "-c", "2", "sset", "\'Speaker\',0", str(vol)+"%"])
     return jsonify({'errno': 0, 'msg': 'success'})
 
+@app.route('/battery', methods=['GET'])
+def get_battery():
+    cmd = [progfile, "--battery"]
+    try:
+        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        return jsonify({'errno': 0, 'battery': output})
+    except subprocess.CalledProcessError as e:
+        return json_response({ 'errno': 400, 'msg': 'get battery failed'})
 
 @app.route('/map', methods=['GET'])
 def get_map():
