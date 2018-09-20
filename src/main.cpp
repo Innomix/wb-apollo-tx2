@@ -16,6 +16,7 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <time.h>
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -211,12 +212,26 @@ static bool parse_task(const char *fpath, std::vector<rpos::core::Location> &poi
     return true;
 }
 
+static void turn_around(SlamwareCorePlatform &sdp)
+{
+    std::cout << "turn around, start" << time(NULL) << std::endl;
+    rpos::core::ACTION_DIRECTION actionDirection = rpos::core::ACTION_DIRECTION::TURNRIGHT;
+    rpos::core::Direction direction(actionDirection);
+
+    for (int i = 0; i < 500; i++) {
+        rpos::actions::MoveAction moveBy = sdp.moveBy(direction);
+        boost::this_thread::sleep_for(boost::chrono::milliseconds(200));
+    }
+
+    std::cout << "turn around, finished" << time(NULL) << std::endl;
+}
+
 static bool move_to_point(SlamwareCorePlatform &sdp, const rpos::core::Location &point)
 {
     rpos::core::ActionStatus status;
     int retry = 3;
 
-    while (retry--) {
+    while (retry) {
         std::cout << "\n\n--------------------" << std::endl;
         std::cout << "moveto (" << point.x() << ", " << point.y() << ")" << std::endl;
 
@@ -246,11 +261,13 @@ static bool move_to_point(SlamwareCorePlatform &sdp, const rpos::core::Location 
                 write_log("moveto (%f, %f)\n", point.x(), point.y());
                 write_log("task unreachable");
                 //return false;
+                turn_around(sdp);
             }
             else if (action.getReason() == "failed") {
                 std::cout << "move failed" << std::endl;
                 write_log("moveto (%f, %f)\n", point.x(), point.y());
                 write_log("task failed");
+                retry--;
             }
         }
 
@@ -303,7 +320,7 @@ static int do_task(SlamwareCorePlatform &sdp, const char *jsonfile)
 
     if (endsWith(audio_path, ".mp3") && !access(audio_path.c_str(), F_OK)) {
         char cmd[256];
-        snprintf(cmd, sizeof(cmd), "mpg123 --loop \"-1\" -a hw:2,0 %s &", audio_path.c_str());
+        snprintf(cmd, sizeof(cmd), "mpg123 --loop \"-1\" -a hw:2,0 \"%s\" &", audio_path.c_str());
         printf("%s\n", cmd);
         system(cmd);
     } else {
