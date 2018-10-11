@@ -11,6 +11,7 @@ import os
 import json
 import subprocess
 import codecs
+import time
 
 from flask_cors import CORS
 
@@ -279,6 +280,31 @@ def upload_file():
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/time', methods=['GET'])
+def get_time():
+    timestamp = int(time.time())
+    timestr = time.strftime("%Y-%m-%d %H:%M:%S")
+    return jsonify({'errno': 0, 'timestamp': timestamp, 'timestr': timestr})
+
+@app.route('/time', methods=['PUT'])
+def put_time():
+    timestamp = int(request.args.get('timestamp', 0))
+    tmp_date = time.strftime("%Y-%m-%d", time.localtime(timestamp))
+    tmp_time = time.strftime("%H:%M:%S", time.localtime(timestamp))
+    tmp_cmd = 'date -s "{0} {1}"'.format(tmp_date, tmp_time)
+
+    try:
+        subprocess.check_output(tmp_cmd, stderr=subprocess.STDOUT, shell=True)
+        os.system("hwclock -w")
+        msg = 'success'
+        err = 0
+    except subprocess.CalledProcessError as e:
+        msg = e.output.strip()
+        err = 100
+
+    timestr = time.strftime("%Y-%m-%d %H:%M:%S")
+    return jsonify({ 'errno': err, 'msg': msg, 'timestr': timestr })
 
 
 if __name__ == '__main__':
