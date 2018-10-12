@@ -13,6 +13,6 @@
 
 exec > /tmp/rc-local.out 2>&1;set -x
 
-/opt/apollo/start.sh &
+/opt/apollo/bin/start.sh &
 
 exit 0
