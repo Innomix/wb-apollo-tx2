@@ -7,6 +7,8 @@ from flask import abort
 from flask import make_response
 from flask import request
 
+import requests
+
 import os
 import json
 import subprocess
@@ -305,6 +307,12 @@ def put_time():
 
     timestr = time.strftime("%Y-%m-%d %H:%M:%S")
     return jsonify({ 'errno': err, 'msg': msg, 'timestr': timestr })
+
+@app.route('/wifi_sniffer', methods=['POST'])
+def upload_wifi_sniffer():
+    headers = {'content-type': 'application/x-www-form-urlencoded'}
+    requests.post('http://118.24.48.76/sniffer/', data=request.get_data(), headers=headers)
+    return jsonify({"errno":0, "msg": "success"})
 
 
 if __name__ == '__main__':
